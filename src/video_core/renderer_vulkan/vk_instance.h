@@ -161,6 +161,11 @@ public:
     }
 
     /// Returns true when VK_KHR_image_format_list is supported
+    /// Returns true when VK_GOOGLE_display_timing is enabled
+    bool IsDisplayTimingSupported() const {
+        return display_timing;
+    }
+
     bool IsImageFormatListSupported() const {
         return image_format_list;
     }
@@ -335,6 +340,7 @@ protected:
     bool index_type_uint8{};
     bool fragment_shader_interlock{};
     bool image_format_list{};
+    bool display_timing{};
     bool pipeline_creation_cache_control{};
     bool fragment_shader_barycentric{};
     bool shader_stencil_export{};

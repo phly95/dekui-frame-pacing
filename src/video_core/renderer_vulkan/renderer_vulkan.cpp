@@ -344,6 +344,8 @@ void RendererVulkan::RenderToWindow(PresentWindow& window, const Layout::Framebu
 #ifdef ENABLE_MM3D_PRESENTATION
         frame->input_timing=input_timing;
         frame->interpolated_pair=passes==2;
+        frame->emu_vblank=emulated_vblanks;
+        frame->pair_native=passes==2 && pass==1;
 #endif
 
         if (layout.width != frame->width || layout.height != frame->height) {
@@ -1464,6 +1466,7 @@ void RendererVulkan::SwapBuffers() {
     system.perf_stats->StartSwap();
     screenRendered = false;
 #ifdef ENABLE_MM3D_PRESENTATION
+    ++emulated_vblanks;
     midpoint_async_skip = false;
 #endif
 #ifndef ANDROID

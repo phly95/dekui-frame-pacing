@@ -29,6 +29,10 @@ add_executable(mm3d_interpolation_timeline_tests interpolation_timeline_tests.cp
 target_include_directories(mm3d_interpolation_timeline_tests PRIVATE "${PROJECT_SOURCE_DIR}/src")
 add_test(NAME mm3d_interpolation_timeline COMMAND mm3d_interpolation_timeline_tests)
 
+add_executable(mm3d_vblank_pacer_tests vblank_pacer_tests.cpp)
+target_include_directories(mm3d_vblank_pacer_tests PRIVATE "${PROJECT_SOURCE_DIR}/src")
+add_test(NAME mm3d_vblank_pacer COMMAND mm3d_vblank_pacer_tests)
+
 add_executable(mm3d_cpu_vertex_replay_tests cpu_vertex_replay_tests.cpp)
 target_link_libraries(mm3d_cpu_vertex_replay_tests PRIVATE mm3d_overlay video_core
     nihstro-headers tsl::robin_map Qt6::Core ${PLATFORM_LIBRARIES})

@@ -26,6 +26,7 @@
 #include "common/android_utils.h"
 #endif
 #include "mm3d/diagnostics.h"
+#include "mm3d/vblank_pacer.h"
 #include "mm3d/layout_reset.h"
 #include "mm3d/classic_saving.h"
 #include "mm3d/classic_double_time.h"
@@ -106,6 +107,8 @@ void ApplyFrameInterpolation(bool enabled, bool cpu_vertices) {
 }
 void ApplyPresentationSettings(const Settings& settings) {
     ApplyFrameInterpolation(settings.interpolation_60fps, settings.interpolation_cpu_vertices);
+    VblankPacing::lock_enabled.store(settings.display_lock);
+    VblankPacing::match_rate.store(settings.display_rate_match);
     HudAdjustments::Apply(settings.player_hud);
     PlayerHud::ApplyRupeeKeys(settings.rupee_keys);
     PlayerHud::ApplyCarrots(settings.carrots);
@@ -738,6 +741,24 @@ void Overlay::Draw(vk::CommandBuffer command, vk::Framebuffer framebuffer,
                 state.status = state.settings.Save(state.directory + "presentation.json")
                     ? "Frame rate saved" : "Frame rate save FAILED";
             }
+            if (ImGui::Checkbox("Lock frames to display refresh", &state.settings.display_lock)) {
+                VblankPacing::lock_enabled.store(state.settings.display_lock);
+                state.status = state.settings.Save(state.directory + "presentation.json")
+                    ? "Frame rate saved" : "Frame rate save FAILED";
+            }
+            hover_help("Presents every frame on a fixed display refresh for even frame pacing. "
+                       "Needs VSync and a display at a multiple of ~60 Hz; adds about one refresh of latency.");
+            ImGui::BeginDisabled(!state.settings.display_lock);
+            if (ImGui::Checkbox("Match emulation speed to display", &state.settings.display_rate_match)) {
+                VblankPacing::match_rate.store(state.settings.display_rate_match);
+                state.status = state.settings.Save(state.directory + "presentation.json")
+                    ? "Frame rate saved" : "Frame rate save FAILED";
+            }
+            hover_help("Runs the game up to 2% fast or slow so the 3DS's 59.83 Hz matches the display "
+                       "exactly (e.g. +0.28% on 60 Hz). Audio is resampled to match without added latency.");
+            ImGui::EndDisabled();
+            const double speed = VblankPacing::speed_scale.load();
+            if (speed != 1.0) ImGui::Text("Display-matched speed: %.2f%%", speed * 100.0);
         };
         const auto bloom_control = [&]() {
             if (ImGui::Checkbox("Fix bloom", &state.settings.fix_bloom)) {

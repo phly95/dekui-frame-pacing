@@ -19,6 +19,7 @@
 #ifdef ENABLE_MM3D_PRESENTATION
 #include "mm3d/diagnostics.h"
 #include "mm3d/pause_control.h"
+#include "mm3d/vblank_pacer.h"
 #endif
 
 using namespace std::chrono_literals;
@@ -240,6 +241,13 @@ void FrameLimiter::DoFrameLimiting(microseconds current_system_time_us) {
     if (Settings::GetFrameLimit() == 0) {
         return;
     }
+#ifdef ENABLE_MM3D_PRESENTATION
+    // Display-matched speed (e.g. 100.28% on a 60.000 Hz display); 1.0 unless the presenter
+    // is locked to the display at 100% speed.
+    if (Settings::GetFrameLimit() == 100) {
+        sleep_scale *= MM3D::VblankPacing::speed_scale.load(std::memory_order_relaxed);
+    }
+#endif
 
     // Max lag caused by slow frames. Shouldn't be more than the length of a frame at the current
     // speed percent or it will clamp too much and prevent this from properly limiting to that

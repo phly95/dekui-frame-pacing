@@ -107,6 +107,8 @@ private:
 #ifdef ENABLE_MM3D_PRESENTATION
     bool midpoint_presenting{};
     bool midpoint_async_skip{};
+    /// Emulated 3DS vblanks seen so far (SwapBuffers runs once per emulated vblank).
+    u64 emulated_vblanks{};
     MM3D::CameraMidpoint::PresentationClock midpoint_clock;
     unsigned midpoint_present_generation{};
     std::array<unsigned,11> midpoint_status_counts{};

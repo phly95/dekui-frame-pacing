@@ -6,6 +6,7 @@
 
 #include <memory>
 #include <span>
+#include <vector>
 #include <boost/serialization/access.hpp>
 #include "audio_core/audio_types.h"
 #include "audio_core/time_stretch.h"
@@ -110,6 +111,12 @@ protected:
 private:
     void FlushResidualStretcherAudio();
     void OutputCallback(s16* buffer, std::size_t num_frames);
+#ifdef ENABLE_MM3D_PRESENTATION
+    /// Low-latency rate control for display-matched speed: linearly resamples the FIFO by a
+    /// ratio within +-0.5% of the emulation speed scale, steering the FIFO toward a small fill
+    /// level. Returns the number of frames written.
+    std::size_t ResampleFromFifo(s16* buffer, std::size_t num_frames, double speed_scale);
+#endif
 
     Core::System& system;
 
@@ -118,6 +125,11 @@ private:
     std::atomic<bool> flushing_time_stretcher = false;
     Common::RingBuffer<s16, 0x2000, 2> fifo;
     std::array<s16, 2> last_frame{};
+#ifdef ENABLE_MM3D_PRESENTATION
+    std::vector<s16> resample_buffer; ///< FIFO frames popped but not yet fully consumed
+    double resample_position = 0.0;   ///< Position of the next output frame in resample_buffer
+    double resample_fill = 0.0;       ///< Smoothed FIFO fill, in frames
+#endif
     TimeStretcher time_stretcher;
     std::unique_ptr<Sink> sink;
 

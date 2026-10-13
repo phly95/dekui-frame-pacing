@@ -462,7 +462,28 @@ void PresentWindow::CopyToSwapchain(Frame* frame, bool repeat) {
     }
     const auto pacing_now=std::chrono::duration_cast<std::chrono::nanoseconds>(
         std::chrono::steady_clock::now().time_since_epoch()).count();
-    const auto pacing_deadline=midpoint_pacer.Deadline(pacing_now,frame->interpolated_pair && !repeat);
+    // Prefer locking to the display's real refresh grid; fall back to the host-clock pacer when
+    // the display rate is not a multiple of the 3DS rate, timing is unavailable, or the speed
+    // limit is not 100% (turbo/slow motion must not be throttled to the display).
+    std::optional<std::int64_t> locked_deadline;
+    if(!repeat && MM3D::VblankPacing::lock_enabled.load() && Settings::GetFrameLimit()==100 &&
+       swapchain.IsFifo()) {
+        locked_deadline=vblank_pacer.Deadline(pacing_now,
+            static_cast<std::int64_t>(frame->emu_vblank+(frame->pair_native?1:0)),
+            swapchain.GetDisplayTiming(),frame->pair_native);
+    } else if(!repeat) {
+        vblank_pacer.Reset();
+    }
+    if(!repeat)MM3D::VblankPacing::speed_scale=
+        locked_deadline && MM3D::VblankPacing::match_rate.load() ? vblank_pacer.SpeedScale() : 1.0;
+    if(locked_deadline && pacing_now-vblank_pacer_log_time>=60'000'000'000) {
+        const auto& stats=vblank_pacer.GetStats();
+        LOG_INFO(Render_Vulkan,"Display lock: frames={} resyncs={} shrinks={} speed={:.5f}",
+                 stats.locked,stats.resyncs,stats.shrinks,MM3D::VblankPacing::speed_scale.load());
+        vblank_pacer_log_time=pacing_now;
+    }
+    const auto pacing_deadline=locked_deadline ? *locked_deadline :
+        midpoint_pacer.Deadline(pacing_now,frame->interpolated_pair && !repeat);
     if(pacing_deadline>pacing_now) {
         const auto target=std::chrono::steady_clock::time_point{
             std::chrono::duration_cast<std::chrono::steady_clock::duration>(

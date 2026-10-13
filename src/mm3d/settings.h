@@ -64,6 +64,8 @@ struct Settings {
     bool fix_bloom = true;
     bool interpolation_60fps = true;
     bool interpolation_cpu_vertices = true;
+    bool display_lock = true;
+    bool display_rate_match = true;
     bool classic_saving = false;
     bool classic_double_time = false;
     bool sword_activate_owls = false;

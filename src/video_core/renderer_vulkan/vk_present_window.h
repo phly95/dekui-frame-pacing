@@ -19,6 +19,7 @@ class EmuWindow;
 #ifdef ENABLE_MM3D_PRESENTATION
 #include "mm3d/camera_midpoint.h"
 #include "mm3d/input_latency.h"
+#include "mm3d/vblank_pacer.h"
 namespace MM3D { class Overlay; }
 #endif
 
@@ -33,6 +34,10 @@ struct Frame {
 #ifdef ENABLE_MM3D_PRESENTATION
     MM3D::InputLatency::Frame input_timing;
     bool interpolated_pair{};
+    /// Emulated 3DS vblank that produced this frame, and whether it is the native (second)
+    /// frame of an interpolated pair, which belongs to the following vblank.
+    u64 emu_vblank{};
+    bool pair_native{};
 #endif
     u32 width;
     u32 height;
@@ -114,6 +119,8 @@ private:
     Frame* mm3d_retained{};
     Frame mm3d_background{};
     MM3D::CameraMidpoint::PresentationPacer midpoint_pacer;
+    MM3D::VblankPacing::Pacer vblank_pacer;
+    s64 vblank_pacer_log_time{};
 #endif
     bool vsync_enabled{};
     bool blit_supported;

@@ -422,7 +422,7 @@ bool Instance::CreateDevice() {
         return false;
     }
 
-    boost::container::static_vector<const char*, 13> enabled_extensions;
+    boost::container::static_vector<const char*, 14> enabled_extensions;
     const auto add_extension = [&](std::string_view extension, bool blacklist = false,
                                    std::string_view reason = "") -> bool {
         const auto result =
@@ -477,6 +477,10 @@ bool Instance::CreateDevice() {
     const bool has_fragment_shader_barycentric =
         add_extension(VK_KHR_FRAGMENT_SHADER_BARYCENTRIC_EXTENSION_NAME, is_moltenvk,
                       "the PerVertexKHR attribute is not supported by MoltenVK");
+#ifdef ENABLE_MM3D_PRESENTATION
+    // Refresh period and actual present times, used to lock presentation to the display.
+    display_timing = add_extension(VK_GOOGLE_DISPLAY_TIMING_EXTENSION_NAME);
+#endif
 
     const auto family_properties = physical_device.getQueueFamilyProperties();
     if (family_properties.empty()) {

@@ -34,6 +34,9 @@ void Swapchain::Create(u32 width_, u32 height_, vk::SurfaceKHR surface_, bool lo
     surface = surface_;
     low_refresh_rate = low_refresh_rate_;
     needs_recreation = false;
+#ifdef ENABLE_MM3D_PRESENTATION
+    refresh_period = 0;
+#endif
 
     Destroy();
 
@@ -123,13 +126,21 @@ bool Swapchain::AcquireNextImage() {
 }
 
 void Swapchain::Present() {
-    const vk::PresentInfoKHR present_info = {
+    vk::PresentInfoKHR present_info = {
         .waitSemaphoreCount = 1,
         .pWaitSemaphores = &present_ready[image_index],
         .swapchainCount = 1,
         .pSwapchains = &swapchain,
         .pImageIndices = &image_index,
     };
+#ifdef ENABLE_MM3D_PRESENTATION
+    // A present ID makes the compositor report when this image actually reached the screen.
+    const vk::PresentTimeGOOGLE present_time = {.presentID = ++present_id, .desiredPresentTime = 0};
+    const vk::PresentTimesInfoGOOGLE present_times = {.swapchainCount = 1, .pTimes = &present_time};
+    if (instance.IsDisplayTimingSupported()) {
+        present_info.pNext = &present_times;
+    }
+#endif
 
     MICROPROFILE_SCOPE(Vulkan_Present);
     try {
@@ -147,6 +158,31 @@ void Swapchain::Present() {
 
     frame_index = (frame_index + 1) % image_count;
 }
+
+#ifdef ENABLE_MM3D_PRESENTATION
+std::optional<MM3D::VblankPacing::DisplayTiming> Swapchain::GetDisplayTiming() {
+    if (!instance.IsDisplayTimingSupported() || !swapchain) {
+        return std::nullopt;
+    }
+    const vk::Device device = instance.GetDevice();
+    try {
+        // Re-read the period now and then: the compositor updates it when the display mode changes.
+        if (refresh_period == 0 || ++timing_queries % 600 == 0) {
+            refresh_period = static_cast<s64>(
+                device.getRefreshCycleDurationGOOGLE(swapchain).refreshDuration);
+        }
+        for (const auto& timing : device.getPastPresentationTimingGOOGLE(swapchain)) {
+            last_vblank = std::max(last_vblank, static_cast<s64>(timing.actualPresentTime));
+        }
+    } catch (const vk::SystemError&) {
+        return std::nullopt;
+    }
+    if (refresh_period <= 0 || last_vblank <= 0) {
+        return std::nullopt;
+    }
+    return MM3D::VblankPacing::DisplayTiming{refresh_period, last_vblank};
+}
+#endif
 
 void Swapchain::FindPresentFormat() {
     const auto formats = instance.GetPhysicalDevice().getSurfaceFormatsKHR(surface);

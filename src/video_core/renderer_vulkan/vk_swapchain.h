@@ -5,9 +5,13 @@
 #pragma once
 
 #include <mutex>
+#include <optional>
 #include <vector>
 #include "common/common_types.h"
 #include "video_core/renderer_vulkan/vk_common.h"
+#ifdef ENABLE_MM3D_PRESENTATION
+#include "mm3d/vblank_pacer.h"
+#endif
 
 namespace Vulkan {
 
@@ -28,6 +32,16 @@ public:
 
     /// Presents the current image and move to the next one
     void Present();
+
+#ifdef ENABLE_MM3D_PRESENTATION
+    /// Refresh period and the latest actual present time (VK_GOOGLE_display_timing), if known.
+    std::optional<MM3D::VblankPacing::DisplayTiming> GetDisplayTiming();
+
+    /// True when presents queue for vblank (the only mode a refresh-locked pacer makes sense in).
+    bool IsFifo() const {
+        return present_mode == vk::PresentModeKHR::eFifo;
+    }
+#endif
 
     vk::SurfaceKHR GetSurface() const {
         return surface;
@@ -107,6 +121,12 @@ private:
     u32 frame_index = 0;
     bool needs_recreation = true;
     bool low_refresh_rate;
+#ifdef ENABLE_MM3D_PRESENTATION
+    u32 present_id = 0;
+    u32 timing_queries = 0;
+    s64 refresh_period = 0;
+    s64 last_vblank = 0;
+#endif
 };
 
 } // namespace Vulkan
