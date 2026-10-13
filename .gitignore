@@ -104,3 +104,6 @@ imgui.ini
 *.CIA
 *.CXI
 *.SAV
+build-deck/
+.ccache/
+artifacts/
