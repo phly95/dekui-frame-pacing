@@ -1,3 +1,21 @@
+> [!NOTE]
+> **Unofficial fork of [Dekui](https://github.com/tgacquin/mm3d-dekui)** (Majora's Mask 3D single-screen
+> and frame interpolation mod, based on Azahar), built from the official `1.0.0-beta.2` source archive.
+> Not affiliated with or endorsed by the Dekui maintainer. Report issues with this fork here, not upstream.
+>
+> **Changes in this fork** (see the commit history; the first commit is the unmodified beta.2 source):
+> - **Frame pacing locked to the display refresh.** Each emulated 3DS vblank is assigned a fixed display
+>   refresh using `VK_GOOGLE_display_timing`, so 30 fps output and interpolated 60 fps pairs no longer
+>   judder from host-timer jitter.
+> - **Optional display rate matching.** Emulation runs within ±2% of full speed so the 3DS's 59.83 Hz
+>   matches the display exactly (e.g. +0.28% on 60 Hz), with low-latency audio resampling.
+> - Both are toggled in F1 → Graphics.
+>
+> The code changes were written with AI assistance (Claude).
+>
+> Build: `./build.sh` (uses the same container image as upstream CI), then
+> `cmake --build build-deck --target bundle` inside it for an AppImage.
+
 # dekui
 
 This is a mod to make Majora's Mask 3D fully functional on one screen. In fact, the bottom screen isn't even accessible.
