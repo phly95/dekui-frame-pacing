@@ -184,20 +184,24 @@ std::optional<MM3D::VblankPacing::DisplayTiming> Swapchain::GetDisplayTiming() {
         }
         refresh_period = static_cast<s64>(cycle.refreshDuration);
     }
-    // Drain completed presents in fixed-size batches (VK_INCOMPLETE means more remain).
+    // Gamescope's layer (3.16.x) erases as many history entries as the caller *requested*
+    // even when fewer exist, corrupting its own heap. Ask for the count first (that call erases
+    // nothing), then request at most that many; its history only grows between the two calls.
+    u32 available = 0;
+    if (dispatch.vkGetPastPresentationTimingGOOGLE(device, handle, &available, nullptr) !=
+        VK_SUCCESS) {
+        available = 0; // e.g. out of date: the swapchain is about to be recreated
+    }
     std::array<VkPastPresentationTimingGOOGLE, 16> timings{};
-    for (int batch = 0; batch < 8; ++batch) {
-        u32 count = static_cast<u32>(timings.size());
+    u32 count = std::min<u32>(available, static_cast<u32>(timings.size()));
+    if (count > 0) {
         const VkResult result =
             dispatch.vkGetPastPresentationTimingGOOGLE(device, handle, &count, timings.data());
-        if (result != VK_SUCCESS && result != VK_INCOMPLETE) {
-            break; // e.g. out of date: the swapchain is about to be recreated
-        }
-        for (u32 i = 0; i < std::min<u32>(count, static_cast<u32>(timings.size())); ++i) {
-            last_vblank = std::max(last_vblank, static_cast<s64>(timings[i].actualPresentTime));
-        }
-        if (result != VK_INCOMPLETE) {
-            break;
+        if (result == VK_SUCCESS || result == VK_INCOMPLETE) {
+            for (u32 i = 0; i < std::min<u32>(count, static_cast<u32>(timings.size())); ++i) {
+                last_vblank =
+                    std::max(last_vblank, static_cast<s64>(timings[i].actualPresentTime));
+            }
         }
     }
     if (refresh_period <= 0 || last_vblank <= 0) {
