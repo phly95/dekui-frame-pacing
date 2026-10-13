@@ -126,6 +126,7 @@ private:
     u32 timing_queries = 0;
     s64 refresh_period = 0;
     s64 last_vblank = 0;
+    bool display_timing_failed = false;
 #endif
 };
 

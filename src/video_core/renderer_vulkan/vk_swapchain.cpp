@@ -3,6 +3,7 @@
 // Refer to the license.txt file included.
 
 #include <algorithm>
+#include <array>
 #include <limits>
 #include "common/logging/log.h"
 #include "common/microprofile.h"
@@ -161,21 +162,43 @@ void Swapchain::Present() {
 
 #ifdef ENABLE_MM3D_PRESENTATION
 std::optional<MM3D::VblankPacing::DisplayTiming> Swapchain::GetDisplayTiming() {
-    if (!instance.IsDisplayTimingSupported() || !swapchain) {
+    if (!instance.IsDisplayTimingSupported() || !swapchain || display_timing_failed) {
         return std::nullopt;
     }
-    const vk::Device device = instance.GetDevice();
-    try {
-        // Re-read the period now and then: the compositor updates it when the display mode changes.
-        if (refresh_period == 0 || ++timing_queries % 600 == 0) {
-            refresh_period = static_cast<s64>(
-                device.getRefreshCycleDurationGOOGLE(swapchain).refreshDuration);
-        }
-        for (const auto& timing : device.getPastPresentationTimingGOOGLE(swapchain)) {
-            last_vblank = std::max(last_vblank, static_cast<s64>(timing.actualPresentTime));
-        }
-    } catch (const vk::SystemError&) {
+    // Plain C entry points: this runs on the presentation thread, where an exception from a
+    // driver/layer quirk would terminate the emulator. Any failure disables display timing.
+    const auto& dispatch = VULKAN_HPP_DEFAULT_DISPATCHER;
+    if (!dispatch.vkGetRefreshCycleDurationGOOGLE || !dispatch.vkGetPastPresentationTimingGOOGLE) {
+        display_timing_failed = true;
         return std::nullopt;
+    }
+    const VkDevice device = instance.GetDevice();
+    const VkSwapchainKHR handle = swapchain;
+    // Re-read the period now and then: the compositor updates it when the display mode changes.
+    if (refresh_period == 0 || ++timing_queries % 600 == 0) {
+        VkRefreshCycleDurationGOOGLE cycle{};
+        if (dispatch.vkGetRefreshCycleDurationGOOGLE(device, handle, &cycle) != VK_SUCCESS) {
+            LOG_WARNING(Render_Vulkan, "Display timing unavailable (refresh cycle query failed)");
+            display_timing_failed = true;
+            return std::nullopt;
+        }
+        refresh_period = static_cast<s64>(cycle.refreshDuration);
+    }
+    // Drain completed presents in fixed-size batches (VK_INCOMPLETE means more remain).
+    std::array<VkPastPresentationTimingGOOGLE, 16> timings{};
+    for (int batch = 0; batch < 8; ++batch) {
+        u32 count = static_cast<u32>(timings.size());
+        const VkResult result =
+            dispatch.vkGetPastPresentationTimingGOOGLE(device, handle, &count, timings.data());
+        if (result != VK_SUCCESS && result != VK_INCOMPLETE) {
+            break; // e.g. out of date: the swapchain is about to be recreated
+        }
+        for (u32 i = 0; i < std::min<u32>(count, static_cast<u32>(timings.size())); ++i) {
+            last_vblank = std::max(last_vblank, static_cast<s64>(timings[i].actualPresentTime));
+        }
+        if (result != VK_INCOMPLETE) {
+            break;
+        }
     }
     if (refresh_period <= 0 || last_vblank <= 0) {
         return std::nullopt;
